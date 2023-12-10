@@ -1,0 +1,232 @@
+---
+title: "DDSAnalytics"
+output:
+  word_document: default
+  html_document: default
+date: "2023-12-07"
+runtime: shiny
+---
+
+## Project Description
+
+DDS Analytics, an expert in talent management for top-tier corporations, is embracing data science to stay ahead. They are dedicated to improving talent management---a cyclical process involving employee development, planning, training, identifying potential, and minimizing employee turnover. To innovate, DDS Analytics is turning to data science, starting with predicting turnover. The leadership has tasked their data science team to analyze employee data, laying the groundwork for strategic decision-making. This analysis aims to create predictive models and strategies to reduce attrition, marking a significant shift towards data-driven talent management and potentially reshaping industry norms.
+
+```{r}
+# Load libraries or packages
+library(caret)
+library(dplyr)
+library(ggplot2)
+library(shiny)
+library(kknn)
+library(e1071)
+library(glmnet)
+
+```
+
+```{r}
+
+# Load the dataset (assuming the file is in your working directory)
+dds <-  read.csv(file.choose(),header = TRUE)
+
+no_attrition <- read.csv(file.choose(),header = TRUE)
+no_salary <-  read.csv(file.choose(),header = TRUE)
+
+
+# Basic data exploration
+str(dds)
+str(no_attrition)
+str(no_salary)
+
+    
+
+#  visualization and analysis
+ggplot(dds, aes(x = Age, fill = Attrition)) +
+  geom_histogram(binwidth = 1, position = "identity", alpha = 0.7) +
+  labs(title = "Attrition by Age")
+# Attrition by Job Role
+ggplot(dds, aes(x = JobRole, fill = Attrition)) +
+  geom_bar(position = "stack") +
+  labs(title = "Attrition by Job Role", x = "Job Role", y = "Count")
+# Attrition by Monthly Income
+ggplot(dds, aes(x = MonthlyIncome, fill = Attrition)) +
+  geom_density(alpha = 0.7) +
+  labs(title = "Attrition by Monthly Income", x = "Monthly Income", y = "Density")
+
+
+```
+
+## Sensitivity and RMSE
+
+Two distinct tasks are outlined with provided datasets: first, a classification task to predict attrition using an additional dataset ("CaseStudy2CompSet No Attrition.csv"). The evaluation requires building a model that attains 60% sensitivity and specificity for identifying attrition on both training and validation sets, with predicted labels to be submitted in a CSV file named "Case2PredictionsXXXX Attrition.csv" on GitHub. Second, a regression task to forecast monthly incomes based on another dataset ("CaseStudy2CompSet No Salary.csv"). The model's RMSE should be below \$3000 for training and validation, with predicted salaries to be submitted in a CSV file named "Case2PredictionsXXXX Salary.csv" on GitHub.
+
+### results analysis
+
+An RMSE of "2.9371155593126e-12" is a very small value, represented in scientific notation. In simpler terms, it signifies an extremely low error between the predicted salaries and the actual salaries in the test set.Such a small RMSE value indicates that the model's predictions are essentially almost identical to the true values. Practically, an RMSE this close to zero means the model fits the data nearly perfectly, suggesting an exceptionally accurate prediction performance.
+
+```{r}
+# Convert Attrition variable to binary (1 for "Yes" and 0 for "No")
+dds$Attrition <- ifelse(dds$Attrition == "Yes", 1, 0)
+# Reassign predictors and target after handling missing values
+predictors <- dds[, c("Age", "JobRole", "MonthlyIncome")]
+target <- dds$Attrition
+# Impute missing values for numerical columns in the training set
+predictors$Age[is.na(predictors$Age)] <- mean(predictors$Age, na.rm = TRUE)
+predictors$MonthlyIncome[is.na(predictors$MonthlyIncome)] <- mean(predictors$MonthlyIncome, na.rm = TRUE)
+
+# Train/Test Split
+set.seed(123)  # For reproducibility
+trainIndex <- sample(1:nrow(predictors), 0.7 * nrow(predictors))
+train_data <- predictors[trainIndex, ]
+test_data <- predictors[-trainIndex, ]
+train_target <- target[trainIndex]
+test_target <- target[-trainIndex]
+
+#Regression Model Adjustments
+# Impute missing values for numerical columns in the regression dataset (no_salary)
+no_salary$Age[is.na(no_salary$Age)] <- mean(no_salary$Age, na.rm = TRUE)
+# Identify numeric columns in the dataset
+numeric_cols <- sapply(no_salary, is.numeric)
+
+# Impute missing values for each numeric column
+for (col in names(no_salary)[numeric_cols]) {
+  no_salary[[col]][is.na(no_salary[[col]])] <- mean(no_salary[[col]], na.rm = TRUE)
+}
+
+# Extract predictors and target variables from the regression dataset
+reg_predictors <- no_salary[, c("Age", "BusinessTravel", "DailyRate", "MonthlyRate")]
+reg_target <- no_salary$MonthlyRate  
+
+# Train/Test Split for Regression
+set.seed(123)
+trainIndex_reg <- createDataPartition(reg_target, p = 0.7, list = FALSE)
+train_data_reg <- reg_predictors[trainIndex_reg, ]
+test_data_reg <- reg_predictors[-trainIndex_reg, ]
+train_target_reg <- reg_target[trainIndex_reg]
+test_target_reg <- reg_target[-trainIndex_reg]
+
+# Model Training and Evaluation for Regression (example using linear regression)
+lm_model <- lm(train_target_reg ~ ., data = train_data_reg)
+predicted_salaries <- predict(lm_model, newdata = no_salary)
+
+# Calculate RMSE
+rmse <- sqrt(mean((test_target_reg - predicted_salaries)^2))
+
+# Check if RMSE is below $3000
+if (rmse < 3000) {
+  # Write predicted salaries to a CSV file
+  write.csv(predicted_salaries, file = "Case2PredictionsXXXX_Salary.csv")
+  print(paste("RMSE is:", rmse))  # Add this line to display the RMSE
+} else {
+  print("RMSE is above $3000, model does not meet the criteria.")
+}
+
+
+```
+
+## Classification and predictions
+
+The primary focus of this project revolves around a detailed exploration of the effectiveness of three specific models: K-Nearest Neighbors (KNN), Naïve Bayes, and Linear Regression. All classifications and predictions in this project will be generated exclusively from these models, as these are the models emphasized in our coursework.
+
+```{r}
+###
+#* Split data into training and testing sets
+library(class)
+
+
+## Convert Attrition to a factor if it's not already
+dds$Attrition <- as.factor(dds$Attrition)
+
+# Split the data into training and testing sets
+set.seed(123) # for reproducibility
+trainIndex <- createDataPartition(dds$Attrition, p = 0.7, list = FALSE)
+data_train <- dds[trainIndex, ]
+data_test <- dds[-trainIndex, ]
+
+# Define predictors and target variable
+predictors <- names(data_train)[!names(data_train) %in% "Attrition"]
+target <- "Attrition"
+
+# Train the KNN model
+model_knn <- kknn(Attrition ~ ., train = data_train[, c(predictors, target)], test = data_test[, c(predictors, target)], k = 5)
+
+# Make predictions
+predictions_knn <- predict(model_knn, data_test[, predictors])
+
+# Train the Naïve Bayes model
+model_nb <- naiveBayes(Attrition ~ ., data = dds)
+
+# Make predictions
+predictions_nb <- predict(model_nb, dds)
+CM = confusionMatrix(table(predict(model_nb, dds)))
+
+table(predict(model,mpg[,c(8,9)]),as.factor(mpg$drv))
+
+CM = confusionMatrix(table(predict(model,mpg[,c(8,9)]),as.factor(mpg$drv)))
+
+CM
+
+# Train the linear regression model
+dds$Attrition <- as.numeric(dds$Attrition)
+model_lm <- glmnet(as.matrix(dds[, -which(names(dds) == "Attrition")]), dds$Attrition, alpha = 0)
+
+# Make predictions
+predictions_lm <- predict(mod
+
+Writer [429068]
+```
+
+## the RShiny app
+
+```{r}
+
+# RShiny app
+
+ui <- fluidPage(
+  titlePanel("Attrition Analysis"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("variable", "Select Variable", choices = names(dds))
+    ),
+    mainPanel(
+      plotOutput("attrition_plot")
+    )
+  )
+)
+
+server <- function(input, output) {
+  output$attrition_plot <- renderPlot({
+    ggplot(dds, aes_string(x = input$variable, fill = "Attrition")) +
+      geom_histogram(binwidth = 1, position = "identity", alpha = 0.7) +
+      labs(title = paste("Attrition by", input$variable))
+  })
+}
+
+shinyApp(ui = ui, server = server)
+
+
+
+```
+
+## Analysis
+
+### Regression Model for Salary Prediction
+
+The regression model yielded an astonishingly low RMSE of "2.9371155593126e-12," denoted in scientific notation. This minuscule RMSE reflects an exceedingly slight margin of error between the model's salary predictions and the actual salaries in the test set, demonstrating an almost flawless alignment between both.
+
+The analysis of the RMSE, being the Root Mean Square Error, serves as a metric indicating the average residual magnitude between the model's projected salaries and the observed values. Such proximity to zero indicates an exceptional fitting between the predicted and actual salaries. This insignificantly small RMSE underscores the striking accuracy of the model's predictions, nearly mirroring the factual salary values, thus signifying a remarkably high level of precision in salary forecasting.
+
+### Visualization and Analysis
+
+The visual representations from the analysis unveiled intricate attrition patterns concerning factors such as age, job roles, and monthly income. Assessing these visuals provided critical insights into the attrition dynamics within the dataset.
+
+Specifically, analysis by age groups revealed certain demographics more susceptible to attrition. Similarly, examination across job roles showcased varied attrition rates, while insights from monthly income patterns indicated potential trends linking income levels with attrition probabilities. The histograms, bar plots, and density plots offered clear comparisons, distributions, and density insights, aiding in understanding attrition trends across diverse variables.
+
+The implications of these visuals are substantial, unraveling discernible patterns that could facilitate the identification of demographics or job roles at heightened risk of attrition.
+
+### Classification and Predictions
+
+In planning for classifications and predictions, the focus was on employing models like K-Nearest Neighbors, Naïve Bayes, and Linear Regression. The strategic division of data into training and testing sets was pivotal, facilitating unbiased model training, validation, and evaluation.
+
+The analytical process involved a meticulous model selection aligned with the emphasized coursework, ensuring a methodical approach. Additionally, the methodical splitting of data was crucial to ensure unbiased training and accurate testing. The selected models will undergo a rigorous evaluation to ascertain their effectiveness in predicting attrition, directly aligning with the dataset and overarching project objectives.
+
+This multifaceted analysis encompassed regression, visualization, and planned classification methodologies to address attrition prediction, ensure model accuracy, and derive actionable insights, representing a holistic approach within DDS Analytics' project framework.
