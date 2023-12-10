@@ -169,10 +169,8 @@ CM
 dds$Attrition <- as.numeric(dds$Attrition)
 model_lm <- glmnet(as.matrix(dds[, -which(names(dds) == "Attrition")]), dds$Attrition, alpha = 0)
 
-# Make predictions
-predictions_lm <- predict(mod
 
-Writer [429068]
+
 ```
 
 ## the RShiny app
