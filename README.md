@@ -1,1 +1,3 @@
-# CaseStudy2DDS
+Executive Summary
+
+#DDS Analytics, an expert in talent management for top-tier corporations, is embracing data science to stay ahead. They are dedicated to improving talent management---a cyclical process involving employee development, planning, training, identifying potential, and minimizing employee turnover. To innovate, DDS Analytics is turning to data science, starting with predicting turnover. The leadership has tasked their data science team to analyze employee data, laying the groundwork for strategic decision-making. This analysis aims to create predictive models and strategies to reduce attrition, marking a significant shift towards data-driven talent management and potentially reshaping industry norms.
